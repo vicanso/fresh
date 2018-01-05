@@ -1,6 +1,8 @@
 # fresh
 
-HTTP response freshness testing
+[![Build Status](https://travis-ci.org/vicanso/fresh.svg?branch=master)](https://travis-ci.org/vicanso/fresh)
+
+HTTP response freshness testing，it is copied from [fresh](https://github.com/jshttp/fresh) by golang.
 
 ## API
 
