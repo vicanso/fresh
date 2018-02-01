@@ -1,6 +1,7 @@
 package fresh
 
 import (
+	"bytes"
 	"regexp"
 	"time"
 )
@@ -67,15 +68,16 @@ func Fresh(reqHeader *RequestHeader, resHeader *ResponseHeader) bool {
 	}
 	// if none match
 	if len(noneMatch) != 0 && (len(noneMatch) != 1 || noneMatch[0] != byte('*')) {
-		etag := string(resHeader.ETag)
+		etag := resHeader.ETag
 		if len(etag) == 0 {
 			return false
 		}
 		matches := parseTokenList(noneMatch)
 		etagStale := true
 		for _, match := range matches {
-			str := string(match)
-			if str == etag || str == "W/"+etag || "W/"+str == etag {
+			if bytes.Equal(match, etag) ||
+				bytes.Equal(match, append([]byte("W/"), etag...)) ||
+				bytes.Equal(append([]byte("W/"), match...), etag) {
 				etagStale = false
 				break
 			}
