@@ -7,7 +7,7 @@ install:
   - go get github.com/golang/lint/golint
 
 script:
-  - go test -race ./
+  - go test -race -cover ./
 
 after_script:
   - golint ./
