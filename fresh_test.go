@@ -24,6 +24,26 @@ func TestFresh(t *testing.T) {
 		t.Fatalf("should be fresh'")
 	}
 
+	reqHeader = &RequestHeader{
+		IfNoneMatch: []byte("W/\"foo\""),
+	}
+	resHeader = &ResponseHeader{
+		ETag: []byte("\"foo\""),
+	}
+	if Fresh(reqHeader, resHeader) != true {
+		t.Fatalf("should be fresh'")
+	}
+
+	reqHeader = &RequestHeader{
+		IfNoneMatch: []byte("\"foo\""),
+	}
+	resHeader = &ResponseHeader{
+		ETag: []byte("W/\"foo\""),
+	}
+	if Fresh(reqHeader, resHeader) != true {
+		t.Fatalf("should be fresh'")
+	}
+
 	// when ETags mismatch
 	reqHeader = &RequestHeader{
 		IfNoneMatch: []byte("\"foo\""),
@@ -242,5 +262,20 @@ func TestFresh(t *testing.T) {
 	}
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
+	}
+}
+
+func BenchmarkFresh(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		reqHeader := &RequestHeader{
+			IfNoneMatch:     []byte("\"foo\""),
+			IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
+		}
+		resHeader := &ResponseHeader{
+			ETag:         []byte("\"foo\""),
+			LastModified: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
+		}
+		Fresh(reqHeader, resHeader)
 	}
 }

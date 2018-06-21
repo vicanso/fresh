@@ -6,6 +6,11 @@ HTTP response freshness testing，it is copied from [fresh](https://github.com/j
 
 ## API
 
+### Fresh
+
+- `RequestHeader`
+- `ResponseHeader`
+
 ```go
 reqHeader = &RequestHeader{
   IfNoneMatch:     []byte("\"foo\""),
@@ -19,3 +24,19 @@ resHeader = &ResponseHeader{
 Fresh(reqHeader, resHeader)
 ```
 
+### Check
+
+- `modifiedSince` IfNoneMatch of requset header field
+
+- `noneMatch` IfNoneMatch of request header field
+
+- `cacheControl` Cache-Control of request header field
+
+- `lastModified` LastModified of response header field
+
+- `etag` ETag of response header field
+
+
+```go
+Check([]byte("Sat, 01 Jan 2000 00:00:00 GMT"), []byte("\"foo\""), nil, []byte("Sat, 01 Jan 2000 00:00:00 GMT"), []byte("\"foo\""))
+```

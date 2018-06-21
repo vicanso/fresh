@@ -19,6 +19,10 @@ type ResponseHeader struct {
 	LastModified []byte
 }
 
+var noCacheReg = regexp.MustCompile(`(?:^|,)\s*?no-cache\s*?(?:,|$)`)
+
+var weekTagPrefix = []byte("W/")
+
 func parseTokenList(buf []byte) [][]byte {
 	end := 0
 	start := 0
@@ -53,31 +57,31 @@ func parseHTTPDate(date string) int64 {
 	return t.Unix()
 }
 
-// Fresh 判断该请求是否 fresh
-func Fresh(reqHeader *RequestHeader, resHeader *ResponseHeader) bool {
-	//
-	modifiedSince := reqHeader.IfModifiedSince
-	noneMatch := reqHeader.IfNoneMatch
+// Check 判断响应是否fresh
+func Check(modifiedSince, noneMatch, cacheControl, lastModified, etag []byte) bool {
 	if len(modifiedSince) == 0 && len(noneMatch) == 0 {
 		return false
 	}
-	cacheControl := reqHeader.CacheControl
-	reg := regexp.MustCompile(`(?:^|,)\s*?no-cache\s*?(?:,|$)`)
-	if len(cacheControl) != 0 && reg.Match(cacheControl) {
+	if len(cacheControl) != 0 && noCacheReg.Match(cacheControl) {
 		return false
 	}
 	// if none match
 	if len(noneMatch) != 0 && (len(noneMatch) != 1 || noneMatch[0] != byte('*')) {
-		etag := resHeader.ETag
 		if len(etag) == 0 {
 			return false
 		}
 		matches := parseTokenList(noneMatch)
 		etagStale := true
 		for _, match := range matches {
-			if bytes.Equal(match, etag) ||
-				bytes.Equal(match, append([]byte("W/"), etag...)) ||
-				bytes.Equal(append([]byte("W/"), match...), etag) {
+			if bytes.Equal(match, etag) {
+				etagStale = false
+				break
+			}
+			if bytes.HasPrefix(match, weekTagPrefix) && bytes.Equal(match[2:], etag) {
+				etagStale = false
+				break
+			}
+			if bytes.HasPrefix(etag, weekTagPrefix) && bytes.Equal(etag[2:], match) {
 				etagStale = false
 				break
 			}
@@ -88,7 +92,6 @@ func Fresh(reqHeader *RequestHeader, resHeader *ResponseHeader) bool {
 	}
 	// if modified since
 	if len(modifiedSince) != 0 {
-		lastModified := resHeader.LastModified
 		if len(lastModified) == 0 {
 			return false
 		}
@@ -101,6 +104,10 @@ func Fresh(reqHeader *RequestHeader, resHeader *ResponseHeader) bool {
 			return false
 		}
 	}
-
 	return true
+}
+
+// Fresh 判断该请求是否 fresh
+func Fresh(reqHeader *RequestHeader, resHeader *ResponseHeader) bool {
+	return Check(reqHeader.IfModifiedSince, reqHeader.IfNoneMatch, reqHeader.CacheControl, resHeader.LastModified, resHeader.ETag)
 }
