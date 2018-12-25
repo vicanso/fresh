@@ -2,22 +2,23 @@ package fresh
 
 import (
 	"bytes"
+	"net/http"
 	"regexp"
 	"time"
 )
 
-// RequestHeader 请求头
-type RequestHeader struct {
-	IfModifiedSince []byte
-	IfNoneMatch     []byte
-	CacheControl    []byte
-}
-
-// ResponseHeader 响应头
-type ResponseHeader struct {
-	ETag         []byte
-	LastModified []byte
-}
+const (
+	// HeaderIfModifiedSince if modified since
+	HeaderIfModifiedSince = "If-Modified-Since"
+	// HeaderIfNoneMatch if none match
+	HeaderIfNoneMatch = "If-None-Match"
+	// HeaderCacheControl Cache-Control
+	HeaderCacheControl = "Cache-Control"
+	// HeaderETag ETag
+	HeaderETag = "ETag"
+	// HeaderLastModified last modified
+	HeaderLastModified = "Last-Modified"
+)
 
 var noCacheReg = regexp.MustCompile(`(?:^|,)\s*?no-cache\s*?(?:,|$)`)
 
@@ -108,6 +109,13 @@ func Check(modifiedSince, noneMatch, cacheControl, lastModified, etag []byte) bo
 }
 
 // Fresh 判断该请求是否 fresh
-func Fresh(reqHeader *RequestHeader, resHeader *ResponseHeader) bool {
-	return Check(reqHeader.IfModifiedSince, reqHeader.IfNoneMatch, reqHeader.CacheControl, resHeader.LastModified, resHeader.ETag)
+func Fresh(reqHeader http.Header, resHeader http.Header) bool {
+	modifiedSince := []byte(reqHeader.Get(HeaderIfModifiedSince))
+	noneMatch := []byte(reqHeader.Get(HeaderIfNoneMatch))
+	cacheControl := []byte(reqHeader.Get(HeaderCacheControl))
+
+	lastModified := []byte(resHeader.Get(HeaderLastModified))
+	etag := []byte(resHeader.Get(HeaderETag))
+
+	return Check(modifiedSince, noneMatch, cacheControl, lastModified, etag)
 }

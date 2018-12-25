@@ -12,16 +12,10 @@ HTTP response freshness testing，it is copied from [fresh](https://github.com/j
 - `ResponseHeader`
 
 ```go
-reqHeader = &RequestHeader{
-  IfNoneMatch:     []byte("\"foo\""),
-  IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-}
-resHeader = &ResponseHeader{
-  ETag:         []byte("\"foo\""),
-  LastModified: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-}
+req := httptest.NewRequest("GET", "/users/me", nil)
+resp := httptest.NewRecorder()
 // true
-Fresh(reqHeader, resHeader)
+Fresh(req.Header, resp.Header)
 ```
 
 ### Check

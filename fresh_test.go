@@ -2,179 +2,158 @@ package fresh
 
 import (
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
+func createRequestHeader(modifiedSince, noneMatch, cacheControl string) http.Header {
+	req := httptest.NewRequest("GET", "/users/me", nil)
+	header := req.Header
+	if modifiedSince != "" {
+		header.Set(HeaderIfModifiedSince, modifiedSince)
+	}
+
+	if noneMatch != "" {
+		header.Set(HeaderIfNoneMatch, noneMatch)
+	}
+
+	if cacheControl != "" {
+		header.Set(HeaderCacheControl, cacheControl)
+	}
+	return header
+}
+
+func createResponseHeader(lastModified, etag string) http.Header {
+	resp := httptest.NewRecorder()
+	header := resp.Header()
+	if lastModified != "" {
+		header.Set(HeaderLastModified, lastModified)
+	}
+
+	if etag != "" {
+		header.Set(HeaderETag, etag)
+	}
+	return header
+}
 func TestFresh(t *testing.T) {
 	// when a non-conditional GET is performed
-	reqHeader := &RequestHeader{}
-	resHeader := &ResponseHeader{}
+	reqHeader := createRequestHeader("", "", "")
+	resHeader := createResponseHeader("", "")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
 
 	// when ETags match
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("\"foo\""),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("\"foo\""),
-	}
+	reqHeader = createRequestHeader("", "\"foo\"", "")
+
+	resHeader = createResponseHeader("", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh'")
 	}
 
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("W/\"foo\""),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("\"foo\""),
-	}
+	reqHeader = createRequestHeader("", "W/\"foo\"", "")
+	resHeader = createResponseHeader("", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh'")
 	}
 
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("\"foo\""),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("W/\"foo\""),
-	}
+	reqHeader = createRequestHeader("", "\"foo\"", "")
+	resHeader = createResponseHeader("", "W/\"foo\"")
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh'")
 	}
 
 	// when ETags mismatch
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("\"foo\""),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("\"bar\""),
-	}
+	reqHeader = createRequestHeader("", "\"foo\"", "")
+	resHeader = createResponseHeader("", "\"bar\"")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale'")
 	}
 
 	// when at least one matches
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte(" \"bar\" , \"foo\""),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("\"foo\""),
-	}
+	reqHeader = createRequestHeader("", " \"bar\" , \"foo\"", "")
+	resHeader = createResponseHeader("", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh")
 	}
 
 	// when etag is missing
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("\"foo\""),
-	}
-	resHeader = &ResponseHeader{}
+	reqHeader = createRequestHeader("", "\"foo\"", "")
+	resHeader = createResponseHeader("", "")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale'")
 	}
 
 	// when ETag is weak
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("W/\"foo\""),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("W/\"foo\""),
-	}
+	reqHeader = createRequestHeader("", "W/\"foo\"", "")
+	resHeader = createResponseHeader("", "W/\"foo\"")
+
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh on exact match")
 	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("\"foo\""),
-	}
+	resHeader = createResponseHeader("", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh on strong match")
 	}
 
 	// when ETag is strong
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("\"foo\""),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("\"foo\""),
-	}
+	reqHeader = createRequestHeader("", "\"foo\"", "")
+	resHeader = createResponseHeader("", "\"foo\"")
+
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh on exact match")
 	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("W/\"foo\""),
-	}
+	resHeader = createResponseHeader("", "W/\"foo\"")
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("sshould be fresh on weak match")
 	}
 
 	// when * is given
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("*"),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("\"foo\""),
-	}
+	reqHeader = createRequestHeader("", "*", "")
+	resHeader = createResponseHeader("", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh")
 	}
-	reqHeader = &RequestHeader{
-		IfNoneMatch: []byte("*, \"bar\""),
-	}
+
+	reqHeader = createRequestHeader("", "*, \"bar\"", "")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should get ignored if not only value")
 	}
 
 	// when modified since the date
-	reqHeader = &RequestHeader{
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{
-		LastModified: []byte("Sat, 01 Jan 2000 01:00:00 GMT"),
-	}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 00:00:00 GMT", "", "")
+	resHeader = createResponseHeader("Sat, 01 Jan 2000 01:00:00 GMT", "")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
 
 	// when unmodified since the date
-	reqHeader = &RequestHeader{
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 01:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{
-		LastModified: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 01:00:00 GMT", "", "")
+	resHeader = createResponseHeader("Sat, 01 Jan 2000 00:00:00 GMT", "")
+
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh")
 	}
 
 	// when Last-Modified is missing
-	reqHeader = &RequestHeader{
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 01:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 01:00:00 GMT", "", "")
+	resHeader = createResponseHeader("", "")
+
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
 
 	// with invalid If-Modified-Since date
-	reqHeader = &RequestHeader{
-		IfModifiedSince: []byte("foo"),
-	}
-	resHeader = &ResponseHeader{
-		LastModified: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
+	reqHeader = createRequestHeader("foo", "", "")
+	resHeader = createResponseHeader("Sat, 01 Jan 2000 00:00:00 GMT", "")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
 
 	// with invalid Last-Modified date
-	reqHeader = &RequestHeader{
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{
-		LastModified: []byte("foo"),
-	}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 00:00:00 GMT", "", "")
+	resHeader = createResponseHeader("foo", "")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
@@ -183,83 +162,47 @@ func TestFresh(t *testing.T) {
 
 	// both match
 	log.Println("both match")
-	reqHeader = &RequestHeader{
-		IfNoneMatch:     []byte("\"foo\""),
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{
-		ETag:         []byte("\"foo\""),
-		LastModified: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"foo\"", "")
+	resHeader = createResponseHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != true {
 		t.Fatalf("should be fresh")
 	}
 	// when only ETag matches
-	reqHeader = &RequestHeader{
-		IfNoneMatch:     []byte("\"foo\""),
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{
-		ETag:         []byte("\"foo\""),
-		LastModified: []byte("Sat, 01 Jan 2000 01:00:00 GMT'"),
-	}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"foo\"", "")
+	resHeader = createResponseHeader("Sat, 01 Jan 2000 01:00:00 GMT", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
 	// when only Last-Modified matches
-	reqHeader = &RequestHeader{
-		IfNoneMatch:     []byte("\"foo\""),
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{
-		ETag:         []byte("\"bar\""),
-		LastModified: []byte("Sat, 01 Jan 2000 00:00:00 GMT'"),
-	}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"foo\"", "")
+	resHeader = createResponseHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"bar\"")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
 
 	// when none match
-	reqHeader = &RequestHeader{
-		IfNoneMatch:     []byte("\"foo\""),
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{
-		ETag:         []byte("\"bar\""),
-		LastModified: []byte("Sat, 01 Jan 2000 01:00:00 GMT"),
-	}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"foo\"", "")
+	resHeader = createResponseHeader("Sat, 01 Jan 2000 01:00:00 GMT", "\"bar\"")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
 
 	// when requested with Cache-Control: no-cache
-	reqHeader = &RequestHeader{
-		CacheControl: []byte("no-cache"),
-	}
-	resHeader = &ResponseHeader{}
+	reqHeader = createRequestHeader("", "", "no-cache")
+	resHeader = createResponseHeader("", "")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
 	// when ETags match
-	reqHeader = &RequestHeader{
-		CacheControl: []byte("no-cache"),
-		IfNoneMatch:  []byte("\"foo\""),
-	}
-	resHeader = &ResponseHeader{
-		ETag: []byte("\"foo\""),
-	}
+	reqHeader = createRequestHeader("", "\"foo\"", "no-cache")
+	resHeader = createResponseHeader("", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
+
 	// when unmodified since the date
-	reqHeader = &RequestHeader{
-		CacheControl:    []byte("no-cache"),
-		IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
-	resHeader = &ResponseHeader{
-		ETag:         []byte("\"foo\""),
-		LastModified: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-	}
+	reqHeader = createRequestHeader("Sat, 01 Jan 2000 00:00:00 GMT", "", "no-cache")
+	resHeader = createResponseHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"foo\"")
 	if Fresh(reqHeader, resHeader) != false {
 		t.Fatalf("should be stale")
 	}
@@ -267,15 +210,9 @@ func TestFresh(t *testing.T) {
 
 func BenchmarkFresh(b *testing.B) {
 	b.ResetTimer()
+	reqHeader := createRequestHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"foo\"", "")
+	resHeader := createResponseHeader("Sat, 01 Jan 2000 00:00:00 GMT", "\"foo\"")
 	for i := 0; i < b.N; i++ {
-		reqHeader := &RequestHeader{
-			IfNoneMatch:     []byte("\"foo\""),
-			IfModifiedSince: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-		}
-		resHeader := &ResponseHeader{
-			ETag:         []byte("\"foo\""),
-			LastModified: []byte("Sat, 01 Jan 2000 00:00:00 GMT"),
-		}
 		Fresh(reqHeader, resHeader)
 	}
 }
