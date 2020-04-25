@@ -1,6 +1,7 @@
-
 .PHONY: default test test-cover dev
 
+lint:
+	golangci-lint run
 
 # for test
 test:
