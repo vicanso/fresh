@@ -20,7 +20,7 @@ Fresh(req.Header, resp.Header)
 
 ### Check
 
-- `modifiedSince` IfNoneMatch of requset header field
+- `modifiedSince` IfNoneMatch of request header field
 
 - `noneMatch` IfNoneMatch of request header field
 
@@ -28,7 +28,7 @@ Fresh(req.Header, resp.Header)
 
 - `lastModified` LastModified of response header field
 
-- `etag` ETag of response header field
+- `eTag` ETag of response header field
 
 
 ```go
